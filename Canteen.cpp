@@ -1,62 +1,104 @@
 #include "Canteen.h"
 
-int Token::globalTokenID = 100;
+int Token::globalID = 100;
 
-void Token::loadLastID() {
-    ifstream inFile("lastID.txt");
-    if (inFile.is_open()) { inFile >> globalTokenID; inFile.close(); }
+void Token::loadID() {
+    ifstream f("lastID.txt");
+    if(f.is_open()) { f >> globalID; f.close(); }
 }
 
-void Token::saveLastID() {
-    ofstream outFile("lastID.txt");
-    if (outFile.is_open()) { outFile << globalTokenID; outFile.close(); }
+void Token::saveID() {
+    ofstream f("lastID.txt");
+    if(f.is_open()) { f << globalID; f.close(); }
 }
 
-void Token::showLoading() {
-    cout << YELLOW << "Generating your token ";
-    for(int i = 0; i < 3; i++) {
-        cout << ". ";
-        cout.flush();
-        this_thread::sleep_for(chrono::milliseconds(500));
-    }
-    cout << RESET << endl;
+void Token::speak(string msg) {
+    // Built-in macOS command
+    string cmd = "say \"" + msg + "\" &";
+    system(cmd.c_str());
+}
+
+double FoodItem::getCurrentPrice() const {
+    time_t t = time(0);
+    tm* now = localtime(&t);
+    // Happy Hour: 4-5 PM gets 15% discount
+    if(now && now->tm_hour == 16) return basePrice * 0.85; 
+    return basePrice;
 }
 
 void Student::showRole() {
-    cout << CYAN << BOLD << "\n[ STUDENT ACCESS GRANTED ]" << RESET << endl;
-    cout << "Welcome to the Digital Canteen, " << name << "!" << endl;
+    cout << MAGENTA << BOLD << "[ STUDENT SESSION AUTHORIZED ]" << RESET << endl;
 }
 
-Token::Token() : totalBill(0) {
-    currentTokenID = ++globalTokenID;
+void Token::printImageLogo() {
+    cout << CYAN << R"(
+    _________________________________________
+   |                                         |
+   |   _______  _______  __    _  _______    |
+   |  |       ||   _   ||  |  | ||       |   |
+   |  |       ||  |_|  ||   |_| ||    ___|   |
+   |  |       ||       ||       ||   |___    |
+   |  |      _||       ||  _    ||    ___|   |
+   |  |     |_ |   _   || | |   ||   |___    |
+   |  |_______||__| |__||_|  |__||_______|   |
+   |           SMART CANTEEN v3.0            |
+   |_________________________________________|
+    )" << RESET << endl;
 }
 
-void Token::addItem(FoodItem item) {
-    orderedItems.push_back(item);
-    totalBill += item.getPrice();
+Token::Token() : total(0), wait(0) {
+    currentID = ++globalID;
+}
+
+void Token::addItem(FoodItem& item) {
+    items.push_back(item);
+    total += item.getCurrentPrice();
+    wait += item.getPrepTime();
+    item.reduceStock();
+}
+
+void Token::displayQR() {
+    cout << WHITE << BOLD << "\n📲 SCAN TO PAY (UPI/WALLET):" << RESET << endl;
+    cout << "  ▄▄▄▄▄▄▄  ▄ ▄▄▄▄▄▄▄ " << endl;
+    cout << "  █ ▄▄▄ █ ▀█ █ ▄▄▄ █ " << endl;
+    cout << "  █ ███ █ █▀ █ ███ █ " << endl;
+    cout << "  █▄▄▄▄▄█ █▀ █▄▄▄▄▄█ " << endl;
+    cout << "  ▄▄▄ ▄▄▄▄█  ▄▄▄ ▄▄  " << endl;
+    cout << "  █ ▄▄▄ █ ▄▀ █ ▄▄▄ █ " << endl;
+    cout << "  █ ███ █ █  █ ███ █ " << endl;
+    cout << "  █▄▄▄▄▄█ █  █▄▄▄▄▄█ " << endl;
+    cout << RESET << "  [ Merchant ID: SRM_CANTEEN_" << currentID << " ]" << endl;
 }
 
 void Token::printReceipt() {
     system("clear");
-    cout << YELLOW << "====================================" << RESET << endl;
-    cout << GREEN << BOLD << "       CANTEEN TOKEN: #" << currentTokenID << RESET << endl;
-    cout << YELLOW << "====================================" << RESET << endl;
-    
-    for (const auto &item : orderedItems) {
-        cout << left << setw(20) << item.getName() << "Rs. " << right << setw(6) << item.getPrice() << endl;
+    cout << YELLOW << "========================================" << RESET << endl;
+    cout << GREEN << BOLD << "    RECEIPT GENERATED | TOKEN #" << currentID << RESET << endl;
+    cout << YELLOW << "========================================" << RESET << endl;
+    for(auto &i : items) {
+        cout << left << setw(20) << i.getName() << "Rs." << i.getCurrentPrice() << endl;
     }
-    
-    cout << "------------------------------------" << endl;
-    cout << BOLD << left << setw(20) << "TOTAL BILL :" << GREEN << "Rs. " << right << setw(6) << totalBill << RESET << endl;
-    cout << YELLOW << "====================================" << RESET << endl;
-    cout << "  Please pay at the pickup counter  " << endl;
-    cout << YELLOW << "====================================" << RESET << endl;
+    cout << "----------------------------------------" << endl;
+    cout << BOLD << "TOTAL PAYABLE: Rs." << total << RESET << endl;
+    displayQR();
 }
 
-void Token::saveOrderDetails() {
-    ofstream outFile("all_orders.txt", ios::app);
-    if (outFile.is_open()) {
-        outFile << "Token: #" << currentTokenID << " | Bill: Rs." << totalBill << endl;
-        outFile.close();
+void Token::startKitchenAnimation() {
+    speak("Payment received. We are preparing your order.");
+    int barLen = 30;
+    cout << "\n" << BOLD << "👨‍🍳 KITCHEN IS COOKING:" << RESET << endl;
+    for (int i = 0; i <= wait; i++) {
+        float p = (float)i / wait;
+        int pos = barLen * p;
+        cout << "\r" << BOLD << "PROGRESS: " << RESET << "[";
+        for (int j = 0; j < barLen; ++j) {
+            if (j < pos) cout << GREEN << "■" << RESET;
+            else cout << " ";
+        }
+        cout << "] " << int(p * 100.0) << "% | " << YELLOW << wait - i << "s left" << RESET;
+        cout.flush();
+        this_thread::sleep_for(chrono::seconds(1));
     }
+    cout << "\n\n" << GREEN << BOLD << "🔔 ORDER #" << currentID << " IS READY!" << RESET << endl;
+    speak("Order " + to_string(currentID) + " is ready for pickup.");
 }
