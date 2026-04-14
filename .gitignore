@@ -1,0 +1,5 @@
+CanteenApp
+*.out
+*.exe
+*.txt
+.DS_Store
